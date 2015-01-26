@@ -5,14 +5,16 @@
 // it is backed by a MongoDB collection named "players".
 // boats = new Mongo.Collection("boat-collection");
 // fishList = new Mongo.Collection("fish-collection");
-players = new Mongo.Collection("player-collection");
+Players = new Mongo.Collection("players");
+
 
 GameStateCollection = new Mongo.Collection("GameState");
 
 FishID =0; 
+BoatID =0;
 if (Meteor.isClient) {
 
-  // Meteor.subscribe('GameState');
+  Meteor.subscribe('GameState');
 
   // Meteor.subscribe('player-collection');
 
@@ -212,6 +214,9 @@ function Ocean() {
     },
 
    drawBoat: function(boat) {
+
+   	
+
        var x = boat.x;
        var y = boat.y;
        var color = boat.color;
@@ -306,6 +311,7 @@ function Ocean() {
         this.imageData.data[i+3] = 50;
 
         }
+     
       var slope = (ropeEnd[0]- ropeStart[0]) / (ropeEnd[1]- ropeStart[1]);
        for (var y = ropeStart[1]; y != ropeEnd[1]; y+= (ropeEnd[1]>ropeStart[1])? 1 :-1  ) {
         x = Math.round(((y-ropeStart[1])*slope) + ropeStart[0]);
@@ -332,10 +338,14 @@ function Ocean() {
      this.imageData = this.context.getImageData(0, 0, 500, 500);
       
       
-       FishArray = GameStateCollection.find().fetch()[0].content;
+       FishArray = GameStateCollection.find({name: "FishDocument"}).fetch()[0].content;
+       BoatArray = GameStateCollection.find({name: "BoatDocument"}).fetch()[0].content;
 
       for(var i=0; i<FishArray.length; i++)
        this.drawFish(FishArray[i]);
+
+   	  for(var i=0; i<BoatArray.length; i++)
+       	this.drawBoat(BoatArray[i]);
         
   
       
@@ -380,10 +390,18 @@ if (Meteor.isServer) {
   //   Meteor.publish('player-collection', function() {
   //   return Ocean.boats;//Players.find()
   // })
-  // Meteor.publish('GameState', function() {
-  //   return GameStateCollection.find({});
-  // })
+  Meteor.publish('GameState', function() {
+    return GameStateCollection.find({});
+  })
+ // var keyW = false
+ //    , keyA = false
+ //    , keyS = false
+ //    , keyD = false
 
+ //    , keyUp = false  
+ //    , keyLeft = false
+ //    , keyDown = false
+ //    , keyRight = false;
 
   // Constant properties 
   Ocean = (function() {
@@ -401,15 +419,7 @@ if (Meteor.isServer) {
   var SegmentWrapLogicLUT=[ 1, 1, 1, 9,-1,-1,-1,0,1,1,1,9,-1,-1,-1]; //this is a look up table for whether to rotate left or right
 
 
-  var keyW = false
-    , keyA = false
-    , keyS = false
-    , keyD = false
-
-    , keyUp = false  
-    , keyLeft = false
-    , keyDown = false
-    , keyRight = false;
+ 
 
    function decodeSegment(segment){ //convert direction to x and y 
             var delta = [0,0];
@@ -493,11 +503,20 @@ if (Meteor.isServer) {
     return(segment);
     }
 
-function portableFish(fish){
-         this.x = fish.x;
-         this.y = fish.y;
-         this.segment = fish.segment;
-         this.color = fish.color;
+function portablePogo(Item){
+         this.x = Item.x;
+         this.y = Item.y;
+         this.segment = Item.segment;
+         this.color = Item.color;
+         if(!(Item.rate === undefined))
+         	{
+     	 this.ropePos = Item.ropePos ;
+         this.ropePos2= Item.ropePos2; 
+         this.netPos = Item.netPos ;
+         this.haul = Item.haul;        
+         this.rate = Item.rate ;
+         	}
+        
       } 
 
 function fish(x, y, color){
@@ -727,9 +746,9 @@ function boat(x, y, color, player){
          this.color = color;
 
          this.segment = (player ==1)? 0 : 4;
-         this.ropePos = [this.x-(1*player),this.y,this.segment];
-         this.ropePos2= [this.x-(2*player),this.y,this.segment]; //(and segment)
-         this.netPos  = [this.x-(3*player),this.y,this.segment];
+         this.ropePos = [this.x-(1),this.y,this.segment];
+         this.ropePos2= [this.x-(2),this.y,this.segment]; //(and segment)
+         this.netPos  = [this.x-(3),this.y,this.segment];
 
          this.haul =0;
          this.rate =0;
@@ -758,14 +777,19 @@ function boat(x, y, color, player){
           var desiredSegment = 0;
           var delta = [0,0];
 
-          
+
+ 	 var keyW = Players.findOne( {id : this.player.toString} ).UP;
+     var keyA = Players.findOne( {id : this.player.toString} ).LEFT;
+     var keyS = Players.findOne( {id : this.player.toString} ).DOWN;
+     var keyRight = Players.findOne( {id : this.player.toString} ).RIGHT;
+//console.log(keyW,keyA,keyS);
 
         // if(this.player == 1)
-          desiredSegment = encodeSegment(keyW, keyS, keyA, keyD);
+          desiredSegment = encodeSegment(keyW, keyS, keyA, keyRight);
         // else
         //   desiredSegment = encodeSegment(keyUp, keyDown, keyLeft, keyRight);
 
-      console.log(desiredSegment);
+     // console.log(desiredSegment);
 
            if(desiredSegment == -1)
             { delta = [0,0];
@@ -808,17 +832,19 @@ function boat(x, y, color, player){
       };
 
 
-  function generatePortableFishList(listOfFish) {
+  function generatePortableList(List) {
 
-    var PortableFishList = [];
+    var PortableList = [];
 
-    for(var i=0; i<listOfFish.length; i++){
-      var tempogo = new portableFish(listOfFish[i]);
-        PortableFishList.push(tempogo);
+    for(var i=0; i<List.length; i++){
+      var temp = new portablePogo(List[i]);
+        PortableList.push(temp);
       }
 
-    return PortableFishList;
+    return PortableList;
    }
+
+ 
 
   function init(number) {
     var listOfFish = [];
@@ -840,8 +866,10 @@ function boat(x, y, color, player){
       FishID = GameStateCollection.insert(
        {
         name: "FishDocument",
-        content: generatePortableFishList(listOfFish)
+        content: generatePortableList(listOfFish)
        });
+
+     
 
   
     return listOfFish;
@@ -849,11 +877,18 @@ function boat(x, y, color, player){
 
   function Ocean() {
     this.Fishes    = init(population); // spawn new fish
-    this.boats     = [new boat(10,10,5714700,1),new boat(90,90, 7702428,-1)];
+    this.boats     = [];//
     this.scale     = 5//canvas.getAttribute('width') / width;
     this.then      = +Date.now();
     this.paused    = false;
     this.GrowthAccumulator = 0;
+
+      BoatID = GameStateCollection.insert(
+       {
+        name: "BoatDocument",
+        content: generatePortableList(this.boats)
+       });
+
     // console.log("oceanstarted");
     // this.drawFrame();
    
@@ -890,6 +925,10 @@ function boat(x, y, color, player){
     //   console.log(now);
     // },
 
+
+    NewBoat: function(ID) {
+		this.boats.push(new boat(10,10,5714700,ID));  
+    },
 
 
     Growth: function(listOfFish) {
@@ -928,25 +967,22 @@ function boat(x, y, color, player){
       for(var i =1; i<this.boats.length; i++){
         this.boats[i].toot();
         this.boats[i].calculateRate();
-         //console.log(this.boats[i].x,this.boats[i].y)
+         // console.log(this.boats[i].x,this.boats[i].y)
       }
 
-   console.log(keyA);
+  // console.log(keyA);
    
        GameStateCollection.update(
         {name: "FishDocument"},
         // {_id: FishID},
-        {$set: {content: generatePortableFishList(this.Fishes)}});//this.Fishes} });
+        {$set: {content: generatePortableList(this.Fishes)}});
 
-     // GameStateCollection.insert(
-     //   {
-     //    name: "FishDocument",
-     //    content: generatePortableFishList(listOfFish)
-     //   });
-    // GameStateCollection.update(
-    //     {name: "FishDocument"},
-    //     // {_id: FishID},
-    //     {$set: {content: generatePortableFishList(this.Fishes)}});//this.Fishes} });
+       GameStateCollection.update(
+        {name: "BoatDocument"},
+        // {_id: FishID},
+        {$set: {content: generatePortableList(this.boats)}});
+
+  
 
 
     }
@@ -965,89 +1001,78 @@ function boat(x, y, color, player){
       ServerOcean.drawFrame();
     },
 
-      //keydown events
-    'LEFTd': function(){
-      keyA = true;
-       console.log(keyA);
-    },
-    'RIGHTd': function(){
-      keyD = true;
-    },
-    'UPd': function(){
-     keyW = true;
-    },
-    'DOWNd': function(){
-     keyS = true;
-    },
-    //keyup events
-    'LEFTu': function(){
-     keyA= false;
-    },
-    'RIGHTu': function(){
-     keyD= false;
-    },
-    'UPu': function(){
-     keyW = false;
-    },
-    'DOWNu': function(){
-     keyS = false;
-    }
-
-
-    // keydown events
+    //   //keydown events
     // 'LEFTd': function(){
-    //   Players.update({id: Meteor.userId()}, {$set: {LEFT: 1}})
+    //   keyA = true;
+    //    console.log(keyA);
     // },
     // 'RIGHTd': function(){
-    //   Players.update({id: Meteor.userId()}, {$set: {RIGHT: 1}})
+    //   keyD = true;
     // },
     // 'UPd': function(){
-    //   Players.update({id: Meteor.userId()}, {$set: {UP: 1}})
+    //  keyW = true;
     // },
     // 'DOWNd': function(){
-    //   Players.update({id: Meteor.userId()}, {$set: {DOWN: 1}})
+    //  keyS = true;
     // },
     // //keyup events
     // 'LEFTu': function(){
-    //   Players.update({id: Meteor.userId()}, {$set: {LEFT: 0}})
+    //  keyA= false;
     // },
     // 'RIGHTu': function(){
-    //   Players.update({id: Meteor.userId()}, {$set: {RIGHT: 0}})
+    //  keyD= false;
     // },
     // 'UPu': function(){
-    //   Players.update({id: Meteor.userId()}, {$set: {UP: 0}})
+    //  keyW = false;
     // },
     // 'DOWNu': function(){
-    //   Players.update({id: Meteor.userId()}, {$set: {DOWN: 0}})
+    //  keyS = false;
     // }
+
+
+   // keydown events
+    'LEFTd': function(){
+      Players.update({id: Meteor.userId()}, {$set: {LEFT: 	1}})
+    },
+    'RIGHTd': function(){
+      Players.update({id: Meteor.userId()}, {$set: {RIGHT: 	1}})
+    },
+    'UPd': function(){
+      Players.update({id: Meteor.userId()}, {$set: {UP: 	1}})
+    },
+    'DOWNd': function(){
+      Players.update({id: Meteor.userId()}, {$set: {DOWN: 	1}})
+    },
+    //keyup events
+    'LEFTu': function(){
+      Players.update({id: Meteor.userId()}, {$set: {LEFT: 	0}})
+    },
+    'RIGHTu': function(){
+      Players.update({id: Meteor.userId()}, {$set: {RIGHT: 	0}})
+    },
+    'UPu': function(){
+      Players.update({id: Meteor.userId()}, {$set: {UP: 	0}})
+    },
+    'DOWNu': function(){
+      Players.update({id: Meteor.userId()}, {$set: {DOWN: 	0}})
+    }
 
   })
 
   // Do this upon a player loggin in for the first time
-  // Accounts.onLogin(function(options) {
-  //  // if(Players.findOne({id : options.user._id}) === undefined) {
-  //  //  // // Add a new player for the new user.
-  //  //  // Players.insert({
-  //  //  //   id: options.user._id,
-  //  //  //   xdir: 0,
-  //  //  //   ydir: 0,
-  //  //  //   xpos: Math.floor(Math.random()*400),
-  //  //  //   ypos: Math.floor(Math.random()*400)
-  //  //  // })
-  //  // }
-  // })
+  Accounts.onLogin(function(options) {
+   if(Players.findOne({id : options.user._id}) === undefined) {
+    // // Add a new player for the new user.
+    Players.insert({
+      id: options.user._id,
+      LEFT : 0,
+      RIGHT : 0,
+      UP : 0,
+      DOWN : 0
+    })
+   }
+		ServerOcean.NewBoat(options.user._id);
+		console.log(options.user._id);
+  })
 
-  // GAME LOOP
-  // Meteor.setInterval(function() {
-  //   var players = Players.find().fetch()
-  //   if (players.length > 0){
-  //     players.forEach(function(i) {
-  //       var speed = 1
-  //       // Keep the position within the canvas
-  //       var x = (i.xpos < 0) ? 400 : (i.xpos + speed*i.xdir)%400
-  //       var y = i.ypos < 0 ? 400 : (i.ypos + speed*i.ydir)%400
-  //       Players.update({id: i.id}, {$set: {xpos: x, ypos: y}})
-  //     })
-  //   }
-  // }, 10)
 }
